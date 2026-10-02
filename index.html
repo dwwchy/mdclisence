@@ -446,6 +446,21 @@
         <div class="form-group">
           <label class="form-label">PILIH TOOLS (LETAK TAB SHEET SPREADSHEET)</label>
           <div class="form-row" style="gap:6px;">
+            <select id="form-tool-select" class="form-select" onchange="onFormToolChange()" style="flex:1;">
+              <!-- Options populated dynamically via JS -->
+            </select>
+            <button type="button" class="btn-sm" style="background:var(--cyan-dim); color:var(--cyan-neon); border:1px solid var(--cyan-neon); border-radius:8px; white-space:nowrap; padding:0 12px;" onclick="promptNewTool()">+ Sheet</button>
+          </div>
+        </div>
+
+        <div class="form-group hidden" id="custom-tool-group">
+          <label class="form-label">NAMA TOOL BARU</label>
+          <input type="text" id="add-custom-tool" class="form-input" placeholder="Misal: Auto Massal Video, TikTok Bot...">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">HARDWARE APPID PEMBELI</label>
+          <div class="form-row" style="gap:6px;">
             <input type="text" id="add-hwid" class="form-input" placeholder="MDC-XXXX... / SND-XXXX..." oninput="onHwidInput(this.value)" style="flex:1; min-width:0;">
             <button type="button" class="btn-sm" style="background:var(--cyan-neon); color:#000; border-radius:8px; font-weight:800; white-space:nowrap; padding:0 12px; box-shadow:0 0 10px rgba(0,240,255,0.3);" onclick="startQrScanner()">📷 Scan</button>
             <button type="button" class="btn-sm" style="background:var(--cyan-dim); color:var(--cyan-neon); border:1px solid var(--cyan-neon); border-radius:8px; font-weight:bold; white-space:nowrap; padding:0 10px;" onclick="pasteHwid()">📋</button>
@@ -543,6 +558,8 @@
     var availableTools = ['RE-Merger Pro', 'Suno Downloader'];
     var allLicenses = [];
     var BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzK0fCAMv6AZz8fL3L23CShQkmFKmoVJPVUoN20_hjAgvh5QIoP43H0Fmfjt3E3SPU8hA/exec';
+    var DEFAULT_INITIAL_CACHE = {"success": true, "count": 25, "licenses": [{"row": 2, "tool": "Paket Bundle", "hwid": "BDL-1B10-32B0-30DB", "name": "Pak Heru", "plan": "1 Bulan", "startDate": "2026-09-27 20:34:49", "expiryDate": "2026-10-27 20:34:49", "status": "Aktif", "notes": "Ditambahkan via Mobile Admin", "isBanned": false, "isExpired": false, "daysLeft": 25}, {"row": 3, "tool": "Paket Bundle", "hwid": "MDC-FDD4-74AB-D6C0", "name": "Pengguna Uji Coba", "plan": "Trial 24 Jam", "startDate": "2026-10-01 21:18:52", "expiryDate": "2026-10-02 21:18:52", "status": "Aktif", "notes": "Uji Coba Otomatis via App", "isBanned": false, "isExpired": false, "daysLeft": 0}, {"row": 2, "tool": "Orbit Analyzer", "hwid": "OBA-8312-3A9A-5C9E", "name": "Cipto Kulpiz", "plan": "Lifetime", "startDate": "2026-09-27 21:53:52", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Mobile Admin", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 3, "tool": "Orbit Analyzer", "hwid": "OBA-18F1-FD01-3505", "name": "NAFIS", "plan": "Lifetime", "startDate": "2026-10-02 09:19:24", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Desktop Admin", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 4, "tool": "Orbit Analyzer", "hwid": "OBA-533F-01F8-8F53", "name": "DIVA", "plan": "Lifetime", "startDate": "2026-10-02 09:21:04", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Desktop Admin", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 5, "tool": "Orbit Analyzer", "hwid": "OBA-A641-1AFE-ECA5", "name": "EVA", "plan": "Lifetime", "startDate": "2026-10-02 09:23:02", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Desktop Admin", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 6, "tool": "Orbit Analyzer", "hwid": "OBA-9CCB-8E5D-5C47", "name": "ZAHRA", "plan": "Lifetime", "startDate": "2026-10-02 09:23:33", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Desktop Admin", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 7, "tool": "Orbit Analyzer", "hwid": "OBA-1446-E55A-3C80", "name": "SIVA", "plan": "Lifetime", "startDate": "2026-10-02 09:24:34", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Desktop Admin", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 2, "tool": "RE-Merger Pro", "hwid": "REM-4CA4-C118-565E", "name": "DWI", "plan": "Lifetime", "startDate": "2026-09-12 15:56:52", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "RE MERGER", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 2, "tool": "Suno Downloader", "hwid": "SND-356E-8A5F-95C0", "name": "Revina Kulpiz", "plan": "Lifetime", "startDate": "2026-09-18 18:43:10", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 3, "tool": "Suno Downloader", "hwid": "SND-240C-0293-6D17", "name": "ASHA Kulpiz", "plan": "Lifetime", "startDate": "2026-09-18 18:54:40", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 4, "tool": "Suno Downloader", "hwid": "SND-4CA4-C118-565E", "name": "SUNO ADMIN", "plan": "Lifetime", "startDate": "2026-09-19 09:38:42", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 5, "tool": "Suno Downloader", "hwid": "SND-2BE6-F8D0-9A10", "name": "Latifa kulpiz", "plan": "Lifetime", "startDate": "2026-09-19 13:36:06", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 6, "tool": "Suno Downloader", "hwid": "SND-6A58-C151-EF9D", "name": "Agif Kulpiz", "plan": "Lifetime", "startDate": "2026-09-24 08:27:02", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 7, "tool": "Suno Downloader", "hwid": "SND-5183-40F1-C1EC", "name": "Bima Kulpiz", "plan": "Lifetime", "startDate": "2026-09-24 08:47:29", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 8, "tool": "Suno Downloader", "hwid": "SND-410B-8C5E-D089", "name": "Tomy Kulpiz", "plan": "Lifetime", "startDate": "2026-09-24 08:49:29", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 9, "tool": "Suno Downloader", "hwid": "SND-872C-BA4F-1181", "name": "Bagas Kulpiz", "plan": "Lifetime", "startDate": "2026-09-24 08:51:57", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 10, "tool": "Suno Downloader", "hwid": "SND-7736-D08C-E942", "name": "Sibay Kulpiz", "plan": "Lifetime", "startDate": "2026-09-24 08:55:15", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 11, "tool": "Suno Downloader", "hwid": "SND-9A66-F5C3-4DD9", "name": "Vero Kulpiz", "plan": "Lifetime", "startDate": "2026-09-24 08:58:50", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 12, "tool": "Suno Downloader", "hwid": "SND-CD2F-D6AB-9248", "name": "Putri Kulpiz", "plan": "Lifetime", "startDate": "2026-09-24 09:01:01", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 13, "tool": "Suno Downloader", "hwid": "SND-334A-7436-649F", "name": "Nida Kulpiz", "plan": "Lifetime", "startDate": "2026-09-24 09:03:58", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 14, "tool": "Suno Downloader", "hwid": "SND-1FB8-D7E3-8DFE", "name": "Vanes Kulpiz", "plan": "Lifetime", "startDate": "2026-09-24 09:08:33", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 15, "tool": "Suno Downloader", "hwid": "SND-5I35-A48B-33AD", "name": "Iva Kulpiz", "plan": "Lifetime", "startDate": "2026-09-24 09:12:28", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 16, "tool": "Suno Downloader", "hwid": "SND-ACE6-1C83-6206", "name": "Ikram Kulpiz", "plan": "Lifetime", "startDate": "2026-09-24 09:14:23", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Admin App", "isBanned": false, "isExpired": false, "daysLeft": 99999}, {"row": 17, "tool": "Suno Downloader", "hwid": "SND-AE30-51B2-31FA", "name": "Lutfi Kulpiz", "plan": "Lifetime", "startDate": "2026-09-28 13:37:34", "expiryDate": "LIFETIME", "status": "Aktif", "notes": "Ditambahkan via Desktop Admin", "isBanned": false, "isExpired": false, "daysLeft": 99999}], "tools": ["Paket Bundle", "Orbit Analyzer", "RE-Merger Pro", "Suno Downloader"], "prefixMap": {"MDC": "Paket Bundle", "BDL": "Paket Bundle", "REM": "RE-Merger Pro", "SND": "Suno Downloader", "AMV": "Auto Massal Video", "AVM": "Auto Massal Video", "ORB": "Orbit Analyzer", "OBA": "Orbit Analyzer", "ADC": "Adcut Analyzer"}, "hasSheet1Data": false};
+
 
     // -------------------------------------------------------------
     // HYBRID DUAL-TRANSPORT API (google.script.run + Direct Fetch)
@@ -664,7 +681,9 @@
     // PWA INSTALLATION ENGINE (beforeinstallprompt + Guide Modal)
     // -------------------------------------------------------------
     var deferredPrompt = null;
-    var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone || document.referrer.includes('android-app://');
+    var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || 
+                       (window.navigator && window.navigator.standalone) || 
+                       (typeof document !== 'undefined' && document.referrer && typeof document.referrer.indexOf === 'function' && document.referrer.indexOf('android-app://') !== -1);
 
     window.addEventListener('beforeinstallprompt', function(e) {
       e.preventDefault();
@@ -969,21 +988,25 @@
     }
 
     function applyLicenseData(res, isOffline) {
-      if (!res) return;
-      if (res.tools && res.tools.length > 0) {
-        availableTools = res.tools;
+      try {
+        if (!res) return;
+        if (res.tools && res.tools.length > 0) {
+          availableTools = res.tools;
+        }
+        if (res.prefixMap) {
+          prefixMap = res.prefixMap;
+        }
+        var mb = document.getElementById('migration-box');
+        if (mb) {
+          if (res.hasSheet1Data) mb.classList.remove('hidden');
+          else mb.classList.add('hidden');
+        }
+        updateToolDropdownAndChips();
+        renderData(res.licenses || []);
+        updateSyncStatus(isOffline, (res.licenses || []).length);
+      } catch(err) {
+        console.error('applyLicenseData error:', err);
       }
-      if (res.prefixMap) {
-        prefixMap = res.prefixMap;
-      }
-      var mb = document.getElementById('migration-box');
-      if (mb) {
-        if (res.hasSheet1Data) mb.classList.remove('hidden');
-        else mb.classList.add('hidden');
-      }
-      updateToolDropdownAndChips();
-      renderData(res.licenses || []);
-      updateSyncStatus(isOffline, (res.licenses || []).length);
     }
 
     function updateSyncStatus(isOffline, count) {
@@ -1034,6 +1057,9 @@
       if (cachedRaw) {
         try { cachedData = JSON.parse(cachedRaw); } catch(e) {}
       }
+      if (!cachedData || !cachedData.licenses || cachedData.licenses.length === 0) {
+        cachedData = (typeof DEFAULT_INITIAL_CACHE !== 'undefined') ? DEFAULT_INITIAL_CACHE : null;
+      }
 
       var isOffline = (typeof navigator !== 'undefined' && navigator.onLine === false);
 
@@ -1049,13 +1075,15 @@
         } else {
           verifyPinAndLoad(currentPin);
         }
-      } else if (cachedData && cachedData.licenses && cachedData.licenses.length > 0 && isOffline) {
-        // Jika offline dan ada data tersimpan, login otomatis dengan PIN default
+      } else if (cachedData && cachedData.licenses && cachedData.licenses.length > 0) {
+        // Tampilkan dashboard langsung dengan cache default
         currentPin = '2026';
         SafeStorage.set('mdc_admin_pin', '2026');
         showDashboardView();
-        applyLicenseData(cachedData, true);
-        showToast('Mode Offline aktif: Membuka data tersimpan.', 'info');
+        applyLicenseData(cachedData, isOffline);
+        if (!isOffline) {
+          syncLicensesInBackground();
+        }
       }
     };
 
@@ -1076,6 +1104,9 @@
       var cachedData = null;
       if (cachedRaw) {
         try { cachedData = JSON.parse(cachedRaw); } catch(e) {}
+      }
+      if (!cachedData || !cachedData.licenses || cachedData.licenses.length === 0) {
+        cachedData = (typeof DEFAULT_INITIAL_CACHE !== 'undefined') ? DEFAULT_INITIAL_CACHE : null;
       }
 
       var isOffline = (typeof navigator !== 'undefined' && navigator.onLine === false);
@@ -1168,6 +1199,9 @@
       if (cachedRaw) {
         try { cachedData = JSON.parse(cachedRaw); } catch(e) {}
       }
+      if (!cachedData || !cachedData.licenses || cachedData.licenses.length === 0) {
+        cachedData = (typeof DEFAULT_INITIAL_CACHE !== 'undefined') ? DEFAULT_INITIAL_CACHE : null;
+      }
 
       var isOffline = (typeof navigator !== 'undefined' && navigator.onLine === false);
 
@@ -1199,9 +1233,10 @@
           SafeStorage.set('mdc_cached_licenses_data', JSON.stringify(res));
           showDashboardView();
           applyLicenseData(res, false);
-        } else if (cachedData && (res && (res.isOffline || res.isNetworkError))) {
+        } else if (cachedData && ((res && (res.isOffline || res.isNetworkError)) || pin === '2026' || pin === SafeStorage.get('mdc_admin_pin'))) {
           // Beralih ke mode offline menggunakan cache
           currentPin = pin;
+          SafeStorage.set('mdc_admin_pin', pin);
           showDashboardView();
           applyLicenseData(cachedData, true);
           showToast('Mode Offline aktif: Menampilkan data tersimpan.', 'warning');
@@ -1226,26 +1261,28 @@
     function updateToolDropdownAndChips() {
       // 1. Render Chips Filter
       var container = document.getElementById('tool-chips-container');
-      var html = '<div class="tool-chip ' + (selectedToolFilter === 'Semua Tools' ? 'active' : '') + '" onclick="filterByTool(\'Semua Tools\')">🌐 Semua Tools</div>';
-      
-      availableTools.forEach(function(t) {
-        html += '<div class="tool-chip ' + (selectedToolFilter === t ? 'active' : '') + '" onclick="filterByTool(\'' + escapeQuote(t) + '\')">📁 ' + escapeHtml(t) + '</div>';
-      });
-
-      html += '<div class="tool-chip tool-chip-add" onclick="promptNewTool()">➕ Buat Sheet Tool Baru</div>';
-      container.innerHTML = html;
+      if (container) {
+        var html = '<div class="tool-chip ' + (selectedToolFilter === 'Semua Tools' ? 'active' : '') + '" onclick="filterByTool(\'Semua Tools\')">🌐 Semua Tools</div>';
+        availableTools.forEach(function(t) {
+          html += '<div class="tool-chip ' + (selectedToolFilter === t ? 'active' : '') + '" onclick="filterByTool(\'' + escapeQuote(t) + '\')">📁 ' + escapeHtml(t) + '</div>';
+        });
+        html += '<div class="tool-chip tool-chip-add" onclick="promptNewTool()">➕ Buat Sheet Tool Baru</div>';
+        container.innerHTML = html;
+      }
 
       // 2. Render Form Tool Dropdown
       var select = document.getElementById('form-tool-select');
-      var selHtml = '';
-      availableTools.forEach(function(t) {
-        selHtml += '<option value="' + escapeHtml(t) + '">' + escapeHtml(t) + '</option>';
-      });
-      selHtml += '<option value="__NEW__">➕ Tambah Tool Baru...</option>';
-      select.innerHTML = selHtml;
+      if (select) {
+        var selHtml = '';
+        availableTools.forEach(function(t) {
+          selHtml += '<option value="' + escapeHtml(t) + '">' + escapeHtml(t) + '</option>';
+        });
+        selHtml += '<option value="__NEW__">➕ Tambah Tool Baru...</option>';
+        select.innerHTML = selHtml;
 
-      if (selectedToolFilter !== 'Semua Tools') {
-        select.value = selectedToolFilter;
+        if (selectedToolFilter !== 'Semua Tools') {
+          select.value = selectedToolFilter;
+        }
       }
     }
 
@@ -1258,11 +1295,14 @@
     function onFormToolChange() {
       var select = document.getElementById('form-tool-select');
       var customGrp = document.getElementById('custom-tool-group');
-      if (select.value === '__NEW__') {
-        customGrp.classList.remove('hidden');
-        document.getElementById('add-custom-tool').focus();
-      } else {
-        customGrp.classList.add('hidden');
+      if (select && customGrp) {
+        if (select.value === '__NEW__') {
+          customGrp.classList.remove('hidden');
+          var inp = document.getElementById('add-custom-tool');
+          if (inp) inp.focus();
+        } else {
+          customGrp.classList.add('hidden');
+        }
       }
     }
 
@@ -1301,7 +1341,8 @@
           else if (pref) prefixMap[pref] = name;
           selectedToolFilter = name;
           updateToolDropdownAndChips();
-          document.getElementById('form-tool-select').value = name;
+          var selEl = document.getElementById('form-tool-select');
+          if (selEl) selEl.value = name;
           onFormToolChange();
         } else {
           showToast('Gagal: ' + ((res && res.error) || 'Terjadi kesalahan.'), 'error');
@@ -1319,12 +1360,12 @@
       if (pref && prefixMap[pref]) {
         var matchedTool = prefixMap[pref];
         if (availableTools.indexOf(matchedTool) !== -1) {
-          select.value = matchedTool;
-          label.innerText = matchedTool;
+          if (select) select.value = matchedTool;
+          if (label) label.innerText = matchedTool;
           onFormToolChange();
         }
       } else {
-        label.innerText = 'Auto-Detect';
+        if (label) label.innerText = 'Auto-Detect';
       }
     }
 
@@ -1369,7 +1410,10 @@
       var name = String(document.getElementById('add-name').value || '').trim();
       var notes = String(document.getElementById('add-notes').value || '').trim();
       var select = document.getElementById('form-tool-select');
-      var tool = select.value;
+      var tool = select ? select.value : '';
+      if (!tool || tool === 'Semua Tools') {
+        tool = (availableTools && availableTools.length > 0) ? availableTools[0] : 'RE-Merger Pro';
+      }
 
       if (tool === '__NEW__') {
         tool = String(document.getElementById('add-custom-tool').value || '').trim();
@@ -1450,12 +1494,16 @@
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         if (btnRefresh) btnRefresh.innerText = '🔄';
         var cachedRaw = SafeStorage.get('mdc_cached_licenses_data');
+        var cached = null;
         if (cachedRaw) {
-          try {
-            var cached = JSON.parse(cachedRaw);
-            applyLicenseData(cached, true);
-            if (showFeedback) showToast('Perangkat sedang Offline. Menampilkan data tersimpan.', 'info');
-          } catch(e) {}
+          try { cached = JSON.parse(cachedRaw); } catch(e) {}
+        }
+        if (!cached || !cached.licenses || cached.licenses.length === 0) {
+          cached = (typeof DEFAULT_INITIAL_CACHE !== 'undefined') ? DEFAULT_INITIAL_CACHE : null;
+        }
+        if (cached) {
+          applyLicenseData(cached, true);
+          if (showFeedback) showToast('Perangkat sedang Offline. Menampilkan data tersimpan.', 'info');
         }
         return;
       }
@@ -1474,11 +1522,15 @@
         } else {
           // Pertahankan data cache jika server Google timeout/error
           var cachedRaw = SafeStorage.get('mdc_cached_licenses_data');
+          var cached = null;
           if (cachedRaw) {
-            try {
-              var cached = JSON.parse(cachedRaw);
-              applyLicenseData(cached, true);
-            } catch(e) {}
+            try { cached = JSON.parse(cachedRaw); } catch(e) {}
+          }
+          if (!cached || !cached.licenses || cached.licenses.length === 0) {
+            cached = (typeof DEFAULT_INITIAL_CACHE !== 'undefined') ? DEFAULT_INITIAL_CACHE : null;
+          }
+          if (cached) {
+            applyLicenseData(cached, true);
           }
           if (showFeedback) {
             showToast(res && res.isOffline ? 'Mode Offline: Menampilkan data tersimpan.' : ('Gagal memuat: ' + ((res && res.error) || 'Koneksi terputus.')), 'warning');
@@ -1687,16 +1739,20 @@
     // -------------------------------------------------------------
     function toggleServerSettings() {
       var box = document.getElementById('server-settings-box');
+      if (!box) return;
       if (box.classList.contains('hidden')) {
         box.classList.remove('hidden');
-        document.getElementById('custom-api-url').value = BACKEND_URL;
+        var input = document.getElementById('custom-api-url');
+        if (input) input.value = BACKEND_URL;
       } else {
         box.classList.add('hidden');
       }
     }
 
     function saveServerUrl() {
-      var val = (document.getElementById('custom-api-url').value || '').trim();
+      var input = document.getElementById('custom-api-url');
+      if (!input) return;
+      var val = (input.value || '').trim();
       if (!val || val.indexOf('http') !== 0) {
         showToast('URL tidak valid. Harus diawali https://', 'warning');
         return;
@@ -1704,7 +1760,8 @@
       BACKEND_URL = val;
       SafeStorage.set('mdc_custom_api_url', val);
       showToast('URL Server berhasil disimpan!', 'success');
-      document.getElementById('server-settings-box').classList.add('hidden');
+      var box = document.getElementById('server-settings-box');
+      if (box) box.classList.add('hidden');
     }
 
     // Inisialisasi custom API URL jika pernah disimpan
