@@ -882,6 +882,42 @@ function getMobileAppHtml() {
     .plan-btn.active { border-color: var(--cyan-neon); background: var(--cyan-dim); color: var(--cyan-neon); font-weight: bold; }
     
     
+    
+    /* Cyber-Neon QR Scanner Frame & Laser */
+    .scanner-box {
+      width: 200px;
+      height: 200px;
+      position: relative;
+      border: 1px solid rgba(0, 240, 255, 0.3);
+    }
+    .laser-line {
+      position: absolute;
+      width: 100%;
+      height: 2px;
+      background: var(--cyan-neon);
+      box-shadow: 0 0 12px var(--cyan-neon), 0 0 20px var(--cyan-neon);
+      top: 0;
+      animation: scanLaser 2s infinite ease-in-out alternate;
+    }
+    @keyframes scanLaser {
+      0% { top: 5%; opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { top: 95%; opacity: 0.3; }
+    }
+    .scanner-corner {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-color: var(--cyan-neon);
+      border-style: solid;
+    }
+    .scanner-corner.tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; }
+    .scanner-corner.tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; }
+    .scanner-corner.bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; }
+    .scanner-corner.br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; }
+    #qr-reader video { border-radius: 12px; object-fit: cover !important; }
+    #qr-reader { border: none !important; }
+
     /* PWA Install Banner & Buttons */
     .install-banner {
       background: linear-gradient(135deg, #0a1428 0%, #11203b 100%);
@@ -1005,6 +1041,7 @@ function getMobileAppHtml() {
     
     .hidden { display: none !important; }
   </style>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
 
@@ -1053,6 +1090,65 @@ function getMobileAppHtml() {
     <div class="install-banner-actions">
       <button type="button" class="btn-install-primary" onclick="installPWA()">📲 Pasang di HP</button>
       <button type="button" class="btn-install-dismiss" onclick="dismissInstallBanner()" title="Tutup">✕</button>
+    </div>
+  </div>
+
+  
+  <!-- Modal Scanner QR Code (Cyber-Neon Camera) -->
+  <div id="qr-scanner-modal" class="modal-overlay hidden" style="z-index:9999;">
+    <div class="modal-box" style="max-width:420px; padding:16px; border-color:var(--cyan-neon); box-shadow:0 0 30px rgba(0,240,255,0.35);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:18px;">📷</span>
+          <div>
+            <div style="font-size:13px; font-weight:800; color:var(--cyan-neon);">Scan QR AppID Pembeli</div>
+            <div style="font-size:9px; color:var(--text-muted);">Arahkan kamera ke layar software pembeli</div>
+          </div>
+        </div>
+        <button type="button" onclick="stopQrScanner()" style="background:transparent; border:none; color:var(--text-muted); font-size:18px; cursor:pointer; padding:4px 8px;">✕</button>
+      </div>
+
+      <!-- Viewfinder Video / Scanner Area -->
+      <div id="qr-reader-container" style="position:relative; width:100%; border-radius:12px; overflow:hidden; background:#000; min-height:260px; display:flex; align-items:center; justify-content:center; border:1px solid var(--card-border);">
+        <div id="qr-reader" style="width:100%;"></div>
+        
+        <!-- Cyber-Neon Scanner Overlay -->
+        <div id="qr-scanner-overlay" style="position:absolute; inset:0; pointer-events:none; display:flex; align-items:center; justify-content:center;">
+          <div class="scanner-box">
+            <div class="laser-line"></div>
+            <div class="scanner-corner tl"></div>
+            <div class="scanner-corner tr"></div>
+            <div class="scanner-corner bl"></div>
+            <div class="scanner-corner br"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls & Status -->
+      <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <button type="button" class="btn-sm" style="background:var(--input-bg); color:var(--text-cyan); border:1px solid var(--card-border); font-size:11px;" onclick="switchCamera()">🔄 Balik Kamera</button>
+        <button type="button" class="btn-sm" style="background:var(--input-bg); color:var(--text-cyan); border:1px solid var(--card-border); font-size:11px;" onclick="document.getElementById('qr-file-input').click()">🖼️ Gambar/WA</button>
+        <input type="file" id="qr-file-input" accept="image/*" class="hidden" onchange="scanQrFromImage(this)">
+      </div>
+
+      <div id="qr-status-msg" style="font-size:10px; color:var(--text-muted); text-align:center; margin-top:8px;">
+        Mencari kode QR AppID...
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Tampilkan QR Code Lisensi -->
+  <div id="view-qr-modal" class="modal-overlay hidden" style="z-index:9998;">
+    <div class="modal-box" style="max-width:340px; text-align:center; border-color:var(--cyan-neon);">
+      <div style="font-size:14px; font-weight:800; color:var(--cyan-neon); margin-bottom:4px;" id="modal-qr-title">QR Code Lisensi</div>
+      <div style="font-family:'Consolas', monospace; font-size:12px; color:var(--text-white); font-weight:bold; margin-bottom:12px;" id="modal-qr-hwid"></div>
+      
+      <div style="background:#fff; padding:12px; border-radius:12px; display:inline-block; margin-bottom:12px; box-shadow:0 0 15px rgba(0,240,255,0.3);">
+        <img id="modal-qr-img" src="" style="width:200px; height:200px; display:block;" alt="QR Code">
+      </div>
+      
+      <div style="font-size:10px; color:var(--text-muted); margin-bottom:14px;">Tunjukkan atau scan QR ini untuk aktivasi otomatis</div>
+      <button type="button" class="btn-primary" style="height:38px; font-size:12px;" onclick="closeViewQrModal()">Tutup</button>
     </div>
   </div>
 
@@ -1145,24 +1241,10 @@ function getMobileAppHtml() {
 
         <div class="form-group">
           <label class="form-label">PILIH TOOLS (LETAK TAB SHEET SPREADSHEET)</label>
-          <div class="form-row">
-            <select id="form-tool-select" class="form-select" onchange="onFormToolChange()">
-              <!-- Options populated dynamically -->
-            </select>
-            <button class="btn-sm" style="background:var(--cyan-dim); color:var(--cyan-neon); border:1px solid var(--cyan-neon); border-radius:8px; white-space:nowrap;" onclick="promptNewTool()">+ Sheet</button>
-          </div>
-        </div>
-
-        <div class="form-group hidden" id="custom-tool-group">
-          <label class="form-label">NAMA TOOL BARU</label>
-          <input type="text" id="add-custom-tool" class="form-input" placeholder="Misal: Auto Massal Video, TikTok Bot...">
-        </div>
-        
-        <div class="form-group">
-          <label class="form-label">HARDWARE APPID PEMBELI</label>
-          <div class="form-row">
-            <input type="text" id="add-hwid" class="form-input" placeholder="MDC-XXXX-XXXX / SND-XXXX-XXXX" oninput="onHwidInput(this.value)">
-            <button class="btn-sm" style="background:var(--cyan-dim); color:var(--cyan-neon); border:1px solid var(--cyan-neon); border-radius:8px; font-weight:bold; white-space:nowrap;" onclick="pasteHwid()">📋 Paste</button>
+          <div class="form-row" style="gap:6px;">
+            <input type="text" id="add-hwid" class="form-input" placeholder="MDC-XXXX... / SND-XXXX..." oninput="onHwidInput(this.value)" style="flex:1; min-width:0;">
+            <button type="button" class="btn-sm" style="background:var(--cyan-neon); color:#000; border-radius:8px; font-weight:800; white-space:nowrap; padding:0 12px; box-shadow:0 0 10px rgba(0,240,255,0.3);" onclick="startQrScanner()">📷 Scan</button>
+            <button type="button" class="btn-sm" style="background:var(--cyan-dim); color:var(--cyan-neon); border:1px solid var(--cyan-neon); border-radius:8px; font-weight:bold; white-space:nowrap; padding:0 10px;" onclick="pasteHwid()">📋</button>
           </div>
         </div>
 
@@ -1426,6 +1508,165 @@ function getMobileAppHtml() {
           banner.classList.remove('hidden');
         }
       }, 1000);
+    }
+
+    
+    // -------------------------------------------------------------
+    // QR CODE SCANNER & GENERATOR ENGINE
+    // -------------------------------------------------------------
+    var html5QrCodeScanner = null;
+    var currentCameraFacingMode = "environment";
+
+    function playBeep() {
+      try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.12);
+      } catch(e) {}
+    }
+
+    function startQrScanner() {
+      document.getElementById('qr-scanner-modal').classList.remove('hidden');
+      document.getElementById('qr-status-msg').innerText = 'Mengaktifkan kamera...';
+
+      if (typeof Html5Qrcode === 'undefined') {
+        document.getElementById('qr-status-msg').innerHTML = '<span style="color:var(--warning);">Memuat modul scanner...</span>';
+        var script = document.createElement('script');
+        script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+        script.onload = function() {
+          initCamera();
+        };
+        script.onerror = function() {
+          document.getElementById('qr-status-msg').innerHTML = '<span style="color:var(--danger);">Gagal memuat modul scanner. Pastikan ada koneksi internet.</span>';
+        };
+        document.head.appendChild(script);
+      } else {
+        initCamera();
+      }
+
+      function initCamera() {
+        try {
+          if (html5QrCodeScanner) {
+            try { html5QrCodeScanner.stop(); } catch(e) {}
+          }
+          html5QrCodeScanner = new Html5Qrcode("qr-reader");
+
+          var config = {
+            fps: 15,
+            qrbox: { width: 220, height: 220 },
+            aspectRatio: 1.0
+          };
+
+          html5QrCodeScanner.start(
+            { facingMode: currentCameraFacingMode },
+            config,
+            function(decodedText) {
+              onQrScanned(decodedText);
+            },
+            function(errorMessage) {}
+          ).then(function() {
+            document.getElementById('qr-status-msg').innerText = 'Arahkan kotak ke QR Code AppID pembeli';
+          }).catch(function(err) {
+            console.warn('Camera start error:', err);
+            document.getElementById('qr-status-msg').innerHTML = '<span style="color:var(--warning);">Izin kamera diperlukan atau kamera sedang dipakai. Anda juga bisa memilih gambar screenshot.</span>';
+          });
+        } catch(err) {
+          console.error('Init camera error:', err);
+          document.getElementById('qr-status-msg').innerText = 'Gagal mengakses kamera: ' + err.message;
+        }
+      }
+    }
+
+    function stopQrScanner() {
+      if (html5QrCodeScanner) {
+        try {
+          html5QrCodeScanner.stop().then(function() {
+            html5QrCodeScanner.clear();
+          }).catch(function() {});
+        } catch(e) {}
+      }
+      document.getElementById('qr-scanner-modal').classList.add('hidden');
+    }
+
+    function switchCamera() {
+      currentCameraFacingMode = (currentCameraFacingMode === "environment") ? "user" : "environment";
+      startQrScanner();
+    }
+
+    function scanQrFromImage(inputEl) {
+      if (!inputEl.files || inputEl.files.length === 0) return;
+      var file = inputEl.files[0];
+      document.getElementById('qr-status-msg').innerText = 'Memindai gambar/screenshot...';
+
+      if (!html5QrCodeScanner) {
+        if (typeof Html5Qrcode === 'undefined') {
+          showToast('Modul scanner sedang dimuat...', 'info');
+          return;
+        }
+        html5QrCodeScanner = new Html5Qrcode("qr-reader");
+      }
+
+      html5QrCodeScanner.scanFile(file, true)
+        .then(function(decodedText) {
+          onQrScanned(decodedText);
+        })
+        .catch(function(err) {
+          document.getElementById('qr-status-msg').innerHTML = '<span style="color:var(--danger);">QR Code tidak terdeteksi pada gambar. Pastikan gambar jelas.</span>';
+        });
+    }
+
+    function onQrScanned(decodedText) {
+      playBeep();
+      if (navigator.vibrate) {
+        try { navigator.vibrate([100]); } catch(e) {}
+      }
+
+      var code = String(decodedText || '').trim();
+      if (code.indexOf('hwid=') !== -1) {
+        var match = code.match(/hwid=([A-Z0-9\-]+)/i);
+        if (match) code = match[1];
+      } else if (code.indexOf('/') !== -1 && code.indexOf('-') !== -1) {
+        var parts = code.split('/');
+        code = parts[parts.length - 1];
+      }
+      code = code.toUpperCase();
+
+      var hwidInput = document.getElementById('add-hwid');
+      if (hwidInput) {
+        hwidInput.value = code;
+        onHwidInput(code);
+      }
+
+      stopQrScanner();
+      showToast('✅ Berhasil scan AppID: ' + code, 'success');
+
+      var nameInput = document.getElementById('add-name');
+      if (nameInput) {
+        setTimeout(function() {
+          nameInput.focus();
+        }, 300);
+      }
+    }
+
+    function showQrModal(hwid, name, tool) {
+      document.getElementById('modal-qr-hwid').innerText = hwid;
+      document.getElementById('modal-qr-title').innerText = name + ' (' + tool + ')';
+      var qrImg = document.getElementById('modal-qr-img');
+      qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=10&data=' + encodeURIComponent(hwid);
+      document.getElementById('view-qr-modal').classList.remove('hidden');
+    }
+
+    function closeViewQrModal() {
+      document.getElementById('view-qr-modal').classList.add('hidden');
     }
 
     // -------------------------------------------------------------
@@ -1998,6 +2239,7 @@ function getMobileAppHtml() {
             '</div>' +
             notesHtml +
             '<div class="lic-actions">' +
+              '<button class="btn-sm" style="background:var(--input-bg); color:var(--cyan-neon); border:1px solid var(--cyan-neon);" onclick="showQrModal(\'' + escapeQuote(lic.hwid) + '\', \'' + escapeQuote(lic.name) + '\', \'' + escapeQuote(lic.tool) + '\')">🔳 QR</button>' +
               '<button class="btn-sm" style="background:var(--cyan-dim); color:var(--cyan-neon);" onclick="extendLicense(\'' + escapeQuote(lic.hwid) + '\', \'' + escapeQuote(lic.tool) + '\', 30)">+1 Bulan</button>' +
               '<button class="btn-sm" style="background:var(--input-bg); color:var(--text-white); border:1px solid var(--card-border);" onclick="extendLicense(\'' + escapeQuote(lic.hwid) + '\', \'' + escapeQuote(lic.tool) + '\', 365)">+1 Tahun</button>' +
               '<button class="btn-sm" style="background:' + (lic.isBanned ? 'var(--success)' : 'var(--danger)') + '; color:#fff;" onclick="toggleBlock(\'' + escapeQuote(lic.hwid) + '\', \'' + escapeQuote(lic.tool) + '\', \'' + escapeQuote(lic.status) + '\')">' + (lic.isBanned ? 'Buka Blokir' : 'Blokir') + '</button>' +
