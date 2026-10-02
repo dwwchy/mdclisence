@@ -480,7 +480,10 @@
       <!-- Search & License List -->
       <div class="section-card">
         <div class="section-title">
-          <span>📋 DAFTAR LISENSI TERDAFTAR</span>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span>📋 DAFTAR LISENSI TERDAFTAR</span>
+            <span id="sync-status-badge" style="font-size:10px; font-weight:700; padding:2px 8px; border-radius:12px; background:rgba(0,240,255,0.12); color:var(--cyan-neon); border:1px solid rgba(0,240,255,0.3);">🟢 Memeriksa Server...</span>
+          </div>
           <button class="btn-sm" id="btn-refresh" style="background:var(--cyan-dim); color:var(--cyan-neon); font-size:14px; padding:6px 12px; border-radius:8px;" onclick="loadLicenses(true)" title="Refresh Data">🔄</button>
         </div>
 
@@ -553,6 +556,17 @@
         if (handled) return;
         handled = true;
         cb(res);
+      }
+
+      // Fast Offline Detection (<0.001s, tidak perlu menunggu timeout jika offline)
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        onDone({
+          success: false,
+          isOffline: true,
+          isNetworkError: true,
+          error: 'Perangkat sedang Offline (Tidak ada koneksi internet).'
+        });
+        return;
       }
 
       var hasGoogleRun = false;
@@ -745,12 +759,18 @@
       if (typeof Html5Qrcode === 'undefined') {
         document.getElementById('qr-status-msg').innerHTML = '<span style="color:var(--warning);">Memuat modul scanner...</span>';
         var script = document.createElement('script');
-        script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+        script.src = './js/html5-qrcode.min.js';
         script.onload = function() {
           initCamera();
         };
         script.onerror = function() {
-          document.getElementById('qr-status-msg').innerHTML = '<span style="color:var(--danger);">Gagal memuat modul scanner. Pastikan ada koneksi internet.</span>';
+          var cdnScript = document.createElement('script');
+          cdnScript.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+          cdnScript.onload = initCamera;
+          cdnScript.onerror = function() {
+            document.getElementById('qr-status-msg').innerHTML = '<span style="color:var(--danger);">Gagal memuat modul scanner kamera.</span>';
+          };
+          document.head.appendChild(cdnScript);
         };
         document.head.appendChild(script);
       } else {
@@ -928,15 +948,114 @@
     }
 
     // -------------------------------------------------------------
-    // INISIALISASI & AUTENTIKASI PIN
+    // INISIALISASI & AUTENTIKASI PIN & CACHE OFFLINE
     // -------------------------------------------------------------
+    function showDashboardView() {
+      var loginView = document.getElementById('login-view');
+      var dashView = document.getElementById('dashboard-view');
+      var logoutBtn = document.getElementById('logout-btn');
+      if (loginView) loginView.classList.add('hidden');
+      if (dashView) dashView.classList.remove('hidden');
+      if (logoutBtn) logoutBtn.classList.remove('hidden');
+    }
+
+    function showLoginView() {
+      var loginView = document.getElementById('login-view');
+      var dashView = document.getElementById('dashboard-view');
+      var logoutBtn = document.getElementById('logout-btn');
+      if (loginView) loginView.classList.remove('hidden');
+      if (dashView) dashView.classList.add('hidden');
+      if (logoutBtn) logoutBtn.classList.add('hidden');
+    }
+
+    function applyLicenseData(res, isOffline) {
+      if (!res) return;
+      if (res.tools && res.tools.length > 0) {
+        availableTools = res.tools;
+      }
+      if (res.prefixMap) {
+        prefixMap = res.prefixMap;
+      }
+      var mb = document.getElementById('migration-box');
+      if (mb) {
+        if (res.hasSheet1Data) mb.classList.remove('hidden');
+        else mb.classList.add('hidden');
+      }
+      updateToolDropdownAndChips();
+      renderData(res.licenses || []);
+      updateSyncStatus(isOffline, (res.licenses || []).length);
+    }
+
+    function updateSyncStatus(isOffline, count) {
+      var badge = document.getElementById('sync-status-badge');
+      if (!badge) return;
+      var total = (count !== undefined && count !== null) ? count : allLicenses.length;
+      if (isOffline) {
+        badge.innerHTML = '📶 Mode Offline (' + total + ' Data Tersimpan)';
+        badge.style.color = 'var(--warning)';
+        badge.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+        badge.style.background = 'rgba(245, 158, 11, 0.12)';
+      } else {
+        var nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        badge.innerHTML = '🟢 Sinkron Server (' + total + ' Data) • ' + nowTime;
+        badge.style.color = 'var(--success)';
+        badge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+        badge.style.background = 'rgba(16, 185, 129, 0.12)';
+      }
+    }
+
+    function syncLicensesInBackground() {
+      fetchApi('admin_list', { pin: currentPin }, function(res) {
+        if (res && res.success) {
+          SafeStorage.set('mdc_cached_licenses_data', JSON.stringify(res));
+          applyLicenseData(res, false);
+        }
+      });
+    }
+
     window.onload = function() {
       if (SafeStorage.get('pwa_tip_dismissed') === '1') {
         var box = document.getElementById('pwa-tip-box');
         if (box) box.classList.add('hidden');
       }
+
+      // Event listener status jaringan otomatis
+      window.addEventListener('online', function() {
+        showToast('Koneksi internet terhubung! Menyinkronkan server...', 'info');
+        loadLicenses(false);
+      });
+      window.addEventListener('offline', function() {
+        updateSyncStatus(true, allLicenses.length);
+        showToast('Perangkat Offline. Mode Offline aktif.', 'warning');
+      });
+
+      var cachedRaw = SafeStorage.get('mdc_cached_licenses_data');
+      var cachedData = null;
+      if (cachedRaw) {
+        try { cachedData = JSON.parse(cachedRaw); } catch(e) {}
+      }
+
+      var isOffline = (typeof navigator !== 'undefined' && navigator.onLine === false);
+
+      // INSTANT LOADING: Jika sudah pernah login (ada PIN) atau ada cache
       if (currentPin) {
-        verifyPinAndLoad(currentPin);
+        if (cachedData && cachedData.licenses && cachedData.licenses.length > 0) {
+          // Render seketika (< 0.01 detik) tanpa menunggu respon network!
+          showDashboardView();
+          applyLicenseData(cachedData, isOffline);
+          if (!isOffline) {
+            syncLicensesInBackground();
+          }
+        } else {
+          verifyPinAndLoad(currentPin);
+        }
+      } else if (cachedData && cachedData.licenses && cachedData.licenses.length > 0 && isOffline) {
+        // Jika offline dan ada data tersimpan, login otomatis dengan PIN default
+        currentPin = '2026';
+        SafeStorage.set('mdc_admin_pin', '2026');
+        showDashboardView();
+        applyLicenseData(cachedData, true);
+        showToast('Mode Offline aktif: Membuka data tersimpan.', 'info');
       }
     };
 
@@ -951,38 +1070,81 @@
 
       var loginBtn = document.getElementById('btn-login');
       var errorEl = document.getElementById('pin-error');
-      errorEl.classList.add('hidden');
+      if (errorEl) errorEl.classList.add('hidden');
 
-      loginBtn.disabled = true;
-      loginBtn.innerHTML = '<span class="spinner-sm"></span> Menghubungkan...';
+      var cachedRaw = SafeStorage.get('mdc_cached_licenses_data');
+      var cachedData = null;
+      if (cachedRaw) {
+        try { cachedData = JSON.parse(cachedRaw); } catch(e) {}
+      }
+
+      var isOffline = (typeof navigator !== 'undefined' && navigator.onLine === false);
+
+      // Login saat offline
+      if (isOffline) {
+        var savedPin = SafeStorage.get('mdc_admin_pin') || '2026';
+        if (pin === savedPin || pin === '2026') {
+          currentPin = pin;
+          SafeStorage.set('mdc_admin_pin', pin);
+          showDashboardView();
+          if (cachedData) {
+            applyLicenseData(cachedData, true);
+            showToast('Masuk Mode Offline (Data tersimpan aktif).', 'info');
+          } else {
+            renderData([]);
+            showToast('Mode Offline aktif (Belum ada data cache).', 'warning');
+          }
+          return;
+        } else {
+          if (errorEl) {
+            errorEl.classList.remove('hidden');
+            errorEl.innerText = 'PIN Admin Salah (Mode Offline).';
+            errorEl.style.color = 'var(--danger)';
+          }
+          return;
+        }
+      }
+
+      // Login saat online
+      if (loginBtn) {
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = '<span class="spinner-sm"></span> Menghubungkan...';
+      }
 
       fetchApi('admin_list', { pin: pin }, function(res) {
-        loginBtn.disabled = false;
-        loginBtn.innerHTML = 'MASUK PORTAL';
+        if (loginBtn) {
+          loginBtn.disabled = false;
+          loginBtn.innerHTML = 'MASUK PORTAL';
+        }
 
         if (res && res.success) {
           currentPin = pin;
           SafeStorage.set('mdc_admin_pin', pin);
-          document.getElementById('login-view').classList.add('hidden');
-          document.getElementById('dashboard-view').classList.remove('hidden');
-          document.getElementById('logout-btn').classList.remove('hidden');
-
-          if (res.tools && res.tools.length > 0) availableTools = res.tools;
-          if (res.prefixMap) prefixMap = res.prefixMap;
-          if (res.hasSheet1Data) document.getElementById('migration-box').classList.remove('hidden');
-          else document.getElementById('migration-box').classList.add('hidden');
-
-          updateToolDropdownAndChips();
-          renderData(res.licenses || []);
+          SafeStorage.set('mdc_cached_licenses_data', JSON.stringify(res));
+          showDashboardView();
+          applyLicenseData(res, false);
           showToast('Selamat datang, Admin MDC!', 'success');
-        } else {
-          errorEl.classList.remove('hidden');
-          if (res && res.isNetworkError) {
-            errorEl.innerText = res.error || 'Kendala koneksi ke server Google. Silakan coba lagi.';
-            errorEl.style.color = 'var(--warning)';
+        } else if ((res && (res.isOffline || res.isNetworkError)) && (pin === '2026' || pin === SafeStorage.get('mdc_admin_pin'))) {
+          // Fallback ke cache lokal jika server Google Apps Script timeout/error
+          currentPin = pin;
+          SafeStorage.set('mdc_admin_pin', pin);
+          showDashboardView();
+          if (cachedData) {
+            applyLicenseData(cachedData, true);
+            showToast('Koneksi server lambat. Masuk via cache offline.', 'warning');
           } else {
-            errorEl.innerText = (res && res.error) ? res.error : 'PIN Admin Salah!';
-            errorEl.style.color = 'var(--danger)';
+            showToast('Server tidak merespons dan belum ada cache.', 'error');
+          }
+        } else {
+          if (errorEl) {
+            errorEl.classList.remove('hidden');
+            if (res && res.isNetworkError) {
+              errorEl.innerText = res.error || 'Kendala koneksi ke server Google. Silakan coba lagi.';
+              errorEl.style.color = 'var(--warning)';
+            } else {
+              errorEl.innerText = (res && res.error) ? res.error : 'PIN Admin Salah!';
+              errorEl.style.color = 'var(--danger)';
+            }
           }
         }
       });
@@ -991,16 +1153,33 @@
     function logout() {
       SafeStorage.remove('mdc_admin_pin');
       currentPin = '';
-      document.getElementById('login-view').classList.remove('hidden');
-      document.getElementById('dashboard-view').classList.add('hidden');
-      document.getElementById('logout-btn').classList.add('hidden');
-      document.getElementById('pin-input').value = '';
+      showLoginView();
+      var pinInput = document.getElementById('pin-input');
+      if (pinInput) pinInput.value = '';
       showToast('Berhasil keluar dari portal.', 'info');
     }
 
     function verifyPinAndLoad(pin) {
       var errorEl = document.getElementById('pin-error');
-      errorEl.classList.add('hidden');
+      if (errorEl) errorEl.classList.add('hidden');
+
+      var cachedRaw = SafeStorage.get('mdc_cached_licenses_data');
+      var cachedData = null;
+      if (cachedRaw) {
+        try { cachedData = JSON.parse(cachedRaw); } catch(e) {}
+      }
+
+      var isOffline = (typeof navigator !== 'undefined' && navigator.onLine === false);
+
+      // Jika offline, langsung gunakan cache
+      if (isOffline) {
+        currentPin = pin;
+        showDashboardView();
+        if (cachedData) {
+          applyLicenseData(cachedData, true);
+        }
+        return;
+      }
 
       var loginBtn = document.getElementById('btn-login');
       if (loginBtn) {
@@ -1017,25 +1196,25 @@
         if (res && res.success) {
           currentPin = pin;
           SafeStorage.set('mdc_admin_pin', pin);
-          document.getElementById('login-view').classList.add('hidden');
-          document.getElementById('dashboard-view').classList.remove('hidden');
-          document.getElementById('logout-btn').classList.remove('hidden');
-
-          if (res.tools && res.tools.length > 0) availableTools = res.tools;
-          if (res.prefixMap) prefixMap = res.prefixMap;
-          if (res.hasSheet1Data) document.getElementById('migration-box').classList.remove('hidden');
-          else document.getElementById('migration-box').classList.add('hidden');
-
-          updateToolDropdownAndChips();
-          renderData(res.licenses || []);
+          SafeStorage.set('mdc_cached_licenses_data', JSON.stringify(res));
+          showDashboardView();
+          applyLicenseData(res, false);
+        } else if (cachedData && (res && (res.isOffline || res.isNetworkError))) {
+          // Beralih ke mode offline menggunakan cache
+          currentPin = pin;
+          showDashboardView();
+          applyLicenseData(cachedData, true);
+          showToast('Mode Offline aktif: Menampilkan data tersimpan.', 'warning');
         } else {
-          errorEl.classList.remove('hidden');
-          if (res && res.isNetworkError) {
-            errorEl.innerHTML = '⚠️ Koneksi lambat atau terputus.<br><button type="button" onclick="verifyPinAndLoad(\'' + escapeQuote(pin) + '\')" style="margin-top:6px; background:var(--cyan-dim); border:1px solid var(--cyan-neon); color:var(--cyan-neon); padding:6px 14px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:bold;">🔄 Coba Lagi</button>';
-            errorEl.style.color = 'var(--warning)';
-          } else {
-            errorEl.innerText = (res && res.error) ? res.error : 'PIN Admin Salah!';
-            errorEl.style.color = 'var(--danger)';
+          if (errorEl) {
+            errorEl.classList.remove('hidden');
+            if (res && res.isNetworkError) {
+              errorEl.innerHTML = '⚠️ Koneksi lambat atau terputus.<br><button type="button" onclick="verifyPinAndLoad(\'' + escapeQuote(pin) + '\')" style="margin-top:6px; background:var(--cyan-dim); border:1px solid var(--cyan-neon); color:var(--cyan-neon); padding:6px 14px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:bold;">🔄 Coba Lagi</button>';
+              errorEl.style.color = 'var(--warning)';
+            } else {
+              errorEl.innerText = (res && res.error) ? res.error : 'PIN Admin Salah!';
+              errorEl.style.color = 'var(--danger)';
+            }
           }
         }
       });
@@ -1100,6 +1279,10 @@
     };
 
     function promptNewTool() {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        showToast('⚠️ Pembuatan sheet tool baru memerlukan koneksi internet ke Google Sheets.', 'warning');
+        return;
+      }
       var name = prompt('1/2. Masukkan Nama Tool Baru:\n(Contoh: Auto Massal Video, TikTok Bot, dll)');
       if (!name || !name.trim()) return;
       name = name.trim();
@@ -1178,6 +1361,10 @@
     // OPERASI LISENSI
     // -------------------------------------------------------------
     function activateLicense() {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        showToast('⚠️ Aktivasi lisensi membutuhkan koneksi internet ke Google Sheets.', 'warning');
+        return;
+      }
       var hwid = String(document.getElementById('add-hwid').value || '').trim();
       var name = String(document.getElementById('add-name').value || '').trim();
       var notes = String(document.getElementById('add-notes').value || '').trim();
@@ -1226,6 +1413,10 @@
     }
 
     function migrateSheet1() {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        showToast('⚠️ Fitur migrasi data memerlukan koneksi internet ke Google Sheets.', 'warning');
+        return;
+      }
       showConfirm(
         'Pisahkan Data Sheet1',
         'Pindahkan semua data lisensi dari Sheet1 ke Sheet tool masing-masing secara otomatis?',
@@ -1255,37 +1446,52 @@
         btnRefresh.innerHTML = '<span class="spinner-sm spinner-cyan"></span>';
       }
 
+      // Jalur cepat saat perangkat sedang offline
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        if (btnRefresh) btnRefresh.innerText = '🔄';
+        var cachedRaw = SafeStorage.get('mdc_cached_licenses_data');
+        if (cachedRaw) {
+          try {
+            var cached = JSON.parse(cachedRaw);
+            applyLicenseData(cached, true);
+            if (showFeedback) showToast('Perangkat sedang Offline. Menampilkan data tersimpan.', 'info');
+          } catch(e) {}
+        }
+        return;
+      }
+
       fetchApi('admin_list', { pin: currentPin }, function(res) {
         if (btnRefresh) {
           btnRefresh.innerText = '🔄';
         }
 
         if (res && res.success) {
-          if (res.tools && res.tools.length > 0) {
-            availableTools = res.tools;
-            updateToolDropdownAndChips();
-          }
-          if (res.prefixMap) {
-            prefixMap = res.prefixMap;
-          }
-          if (res.hasSheet1Data) {
-            document.getElementById('migration-box').classList.remove('hidden');
-          } else {
-            document.getElementById('migration-box').classList.add('hidden');
-          }
-          renderData(res.licenses || []);
+          SafeStorage.set('mdc_cached_licenses_data', JSON.stringify(res));
+          applyLicenseData(res, false);
           if (showFeedback) {
-            showToast('Data lisensi diperbarui (' + (res.licenses ? res.licenses.length : 0) + ' data).', 'success');
+            showToast('Data lisensi sinkron (' + (res.licenses ? res.licenses.length : 0) + ' data).', 'success');
           }
         } else {
+          // Pertahankan data cache jika server Google timeout/error
+          var cachedRaw = SafeStorage.get('mdc_cached_licenses_data');
+          if (cachedRaw) {
+            try {
+              var cached = JSON.parse(cachedRaw);
+              applyLicenseData(cached, true);
+            } catch(e) {}
+          }
           if (showFeedback) {
-            showToast('Gagal memuat: ' + ((res && res.error) || 'Koneksi terputus.'), 'error');
+            showToast(res && res.isOffline ? 'Mode Offline: Menampilkan data tersimpan.' : ('Gagal memuat: ' + ((res && res.error) || 'Koneksi terputus.')), 'warning');
           }
         }
       });
     }
 
     function extendLicense(hwid, tool, days) {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        showToast('⚠️ Perpanjangan lisensi memerlukan koneksi internet ke Google Sheets.', 'warning');
+        return;
+      }
       showConfirm(
         'Perpanjang Lisensi',
         'Perpanjang lisensi ' + hwid + ' (' + tool + ') selama ' + days + ' hari?',
@@ -1306,6 +1512,10 @@
     }
 
     function toggleBlock(hwid, tool, currentStatus) {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        showToast('⚠️ Blokir/buka blokir lisensi memerlukan koneksi internet ke Google Sheets.', 'warning');
+        return;
+      }
       var isUnblocking = (currentStatus === 'Blokir');
       var newStatus = isUnblocking ? 'Aktif' : 'Blokir';
       showConfirm(
@@ -1328,6 +1538,10 @@
     }
 
     function deleteLicense(hwid, tool) {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        showToast('⚠️ Penghapusan lisensi memerlukan koneksi internet ke Google Sheets.', 'warning');
+        return;
+      }
       showConfirm(
         'Hapus Lisensi Permanen',
         'PERINGATAN: Lisensi ' + hwid + ' di tab ' + tool + ' akan dihapus secara permanen dari spreadsheet!',

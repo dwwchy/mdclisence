@@ -54,6 +54,7 @@ else:
     APP_DIR = BASE_DIR
 
 CONFIG_FILE = os.path.join(APP_DIR, "license_config.json")
+ADMIN_CACHE_FILE = os.path.join(APP_DIR, ".admin_license_cache.json")
 LOGO_PATH = os.path.join(BASE_DIR, "assets", "logo_circular.png")
 ICO_PATH = os.path.join(BASE_DIR, "assets", "logo.ico")
 
@@ -104,6 +105,24 @@ def save_config(cfg: dict):
         pass
 
 
+def load_admin_cache() -> dict:
+    if os.path.exists(ADMIN_CACHE_FILE):
+        try:
+            with open(ADMIN_CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def save_admin_cache(data: dict):
+    try:
+        with open(ADMIN_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
 class MDCLicenseAdminApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -128,7 +147,20 @@ class MDCLicenseAdminApp(ctk.CTk):
         self.server_status = "loading"
         self.has_sheet1_data = False
 
+        # INSTANT OFFLINE-FIRST: Muat data cache lokal seketika (< 0.01 detik)
+        cached = load_admin_cache()
+        if cached and cached.get("licenses"):
+            self.licenses_data = cached.get("licenses", [])
+            if cached.get("tools"):
+                self.available_tools = cached.get("tools")
+            if cached.get("prefixMap"):
+                self.prefix_map.update(cached.get("prefixMap"))
+            self.has_sheet1_data = cached.get("hasSheet1Data", False)
+            self.server_status = "offline_cache"
+
         self._build_ui()
+        if self.licenses_data:
+            self._filter_display()
         self._start_live_clock()
         self.after(300, self.refresh_licenses)
 
@@ -139,12 +171,16 @@ class MDCLicenseAdminApp(ctk.CTk):
         try:
             now_str = datetime.now().strftime("%H:%M:%S")
             status = getattr(self, "server_status", "online")
-            if status == "error":
+            if status == "offline_cache":
+                cnt = len(getattr(self, "licenses_data", []))
+                self.lbl_form_status.configure(text=f"📶 Mode Offline ({cnt} Data Tersimpan) • {now_str}", text_color=THEME["warning"])
+            elif status == "error":
                 self.lbl_form_status.configure(text=f"❌ Server Terputus • {now_str}", text_color=THEME["danger"])
             elif status == "loading":
                 self.lbl_form_status.configure(text=f"⏳ Menghubungkan Server... {now_str}", text_color=THEME["warning"])
             else:
-                self.lbl_form_status.configure(text=f"🟢 Sinkron Server: {now_str}", text_color=THEME["success"])
+                cnt = len(getattr(self, "licenses_data", []))
+                self.lbl_form_status.configure(text=f"🟢 Sinkron Server ({cnt} Data): {now_str}", text_color=THEME["success"])
         except Exception:
             pass
         finally:
@@ -677,13 +713,21 @@ class MDCLicenseAdminApp(ctk.CTk):
             try:
                 qs = urllib.parse.urlencode({"action": "admin_list", "pin": pin})
                 req = urllib.request.Request(f"{api_url}?{qs}", headers={"User-Agent": "MDC-Admin/2.0"})
-                with urllib.request.urlopen(req, timeout=10) as res:
+                with urllib.request.urlopen(req, timeout=25) as res:
                     raw = json.loads(res.read().decode("utf-8"))
                     self.after(0, lambda: self._on_list_loaded(raw))
             except Exception as e:
                 def _handle_err(err_text):
-                    self.server_status = "error"
-                    self.lbl_form_status.configure(text=f"❌ Gagal koneksi: {err_text}", text_color=THEME["danger"])
+                    if self.licenses_data:
+                        self.server_status = "offline_cache"
+                        now_str = datetime.now().strftime("%H:%M:%S")
+                        self.lbl_form_status.configure(
+                            text=f"📶 Mode Offline ({len(self.licenses_data)} Data Tersimpan) • {now_str}",
+                            text_color=THEME["warning"]
+                        )
+                    else:
+                        self.server_status = "error"
+                        self.lbl_form_status.configure(text=f"❌ Gagal koneksi: {err_text}", text_color=THEME["danger"])
                 self.after(0, lambda: _handle_err(str(e)))
 
         threading.Thread(target=worker, daemon=True).start()
@@ -694,6 +738,7 @@ class MDCLicenseAdminApp(ctk.CTk):
             self.licenses_data = res.get("licenses", [])
             server_tools = res.get("tools", [])
             self.has_sheet1_data = res.get("hasSheet1Data", False)
+            save_admin_cache(res)
 
             if server_tools:
                 self.available_tools = server_tools
@@ -1045,7 +1090,7 @@ class MDCLicenseAdminApp(ctk.CTk):
                     "notes": notes
                 })
                 req = urllib.request.Request(f"{api_url}?{qs}")
-                with urllib.request.urlopen(req, timeout=10) as res:
+                with urllib.request.urlopen(req, timeout=25) as res:
                     raw = json.loads(res.read().decode("utf-8"))
                     self.after(0, lambda: self._on_activated(raw))
             except Exception as e:
@@ -1098,7 +1143,7 @@ class MDCLicenseAdminApp(ctk.CTk):
                     "tool_name": tool_name,
                     "prefix": prefix
                 })
-                with urllib.request.urlopen(f"{api_url}?{qs}", timeout=10) as res:
+                with urllib.request.urlopen(f"{api_url}?{qs}", timeout=25) as res:
                     raw = json.loads(res.read().decode("utf-8"))
                     def on_done():
                         if raw.get("success"):
@@ -1127,7 +1172,7 @@ class MDCLicenseAdminApp(ctk.CTk):
         def worker():
             try:
                 qs = urllib.parse.urlencode({"action": "admin_migrate_sheet1", "pin": pin})
-                with urllib.request.urlopen(f"{api_url}?{qs}", timeout=15) as res:
+                with urllib.request.urlopen(f"{api_url}?{qs}", timeout=25) as res:
                     raw = json.loads(res.read().decode("utf-8"))
                     def on_done():
                         if raw.get("success"):
@@ -1151,7 +1196,7 @@ class MDCLicenseAdminApp(ctk.CTk):
         def worker():
             try:
                 qs = urllib.parse.urlencode({"action": "admin_extend", "pin": pin, "hwid": hwid, "tool": tool, "days": days})
-                with urllib.request.urlopen(f"{api_url}?{qs}", timeout=8) as res:
+                with urllib.request.urlopen(f"{api_url}?{qs}", timeout=25) as res:
                     raw = json.loads(res.read().decode("utf-8"))
                     self.after(0, lambda: self._on_action_done(raw))
             except Exception as e:
@@ -1170,7 +1215,7 @@ class MDCLicenseAdminApp(ctk.CTk):
         def worker():
             try:
                 qs = urllib.parse.urlencode({"action": "admin_set_status", "pin": pin, "hwid": hwid, "tool": tool, "status": new_status})
-                with urllib.request.urlopen(f"{api_url}?{qs}", timeout=8) as res:
+                with urllib.request.urlopen(f"{api_url}?{qs}", timeout=25) as res:
                     raw = json.loads(res.read().decode("utf-8"))
                     self.after(0, lambda: self._on_action_done(raw))
             except Exception as e:
@@ -1188,7 +1233,7 @@ class MDCLicenseAdminApp(ctk.CTk):
         def worker():
             try:
                 qs = urllib.parse.urlencode({"action": "admin_delete", "pin": pin, "hwid": hwid, "tool": tool})
-                with urllib.request.urlopen(f"{api_url}?{qs}", timeout=8) as res:
+                with urllib.request.urlopen(f"{api_url}?{qs}", timeout=25) as res:
                     raw = json.loads(res.read().decode("utf-8"))
                     self.after(0, lambda: self._on_action_done(raw))
             except Exception as e:
