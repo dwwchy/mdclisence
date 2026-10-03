@@ -1,9 +1,9 @@
 /**
- * MDC License Admin PWA • Service Worker v2.9 (Offline-First Resilient Engine)
+ * MDC License Admin PWA • Service Worker v3.0 (Offline-First Resilient Engine)
  * Powered by MDC.Dev
  */
 
-const CACHE_NAME = 'mdc-admin-pwa-v2.9';
+const CACHE_NAME = 'mdc-admin-pwa-v3.0';
 const ASSETS_TO_CACHE = [
   './',
   'index.html',

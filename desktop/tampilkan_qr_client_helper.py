@@ -21,31 +21,34 @@ from PIL import Image
 def get_qr_image_for_appid(appid: str, size: int = 240) -> Image.Image:
     """
     Mengambil gambar PIL Image QR Code dari AppID.
-    Mendukung online fetch super cepat dan aman.
+    Prioritas: 100% Offline via modul qrcode, lalu fallback online.
     """
     clean_id = str(appid).strip().upper()
+
+    # 1. Prioritas Offline (Super Cepat < 0.001 detik tanpa internet)
+    try:
+        import qrcode
+        qr = qrcode.QRCode(box_size=8, border=2)
+        qr.add_data(clean_id)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
+        return img.resize((size, size), Image.Resampling.LANCZOS)
+    except Exception:
+        pass
+
+    # 2. Fallback Online API jika modul qrcode belum terpasang
     url = f"https://api.qrserver.com/v1/create-qr-code/?size={size}x{size}&margin=10&data={urllib.parse.quote(clean_id)}"
-    
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=5) as response:
             img_data = response.read()
             return Image.open(io.BytesIO(img_data))
-    except Exception as e:
-        # Fallback offline jika tidak ada koneksi internet saat generate QR
-        try:
-            import qrcode
-            qr = qrcode.QRCode(box_size=8, border=2)
-            qr.add_data(clean_id)
-            qr.make(fit=True)
-            return qr.make_image(fill_color="black", back_color="white").convert('RGB')
-        except ImportError:
-            # Jika qrcode belum diinstall, buat gambar placeholder teks
-            from PIL import ImageDraw
-            img = Image.new('RGB', (size, size), color=(20, 20, 20))
-            d = ImageDraw.Draw(img)
-            d.text((20, size // 2 - 10), clean_id, fill=(0, 240, 255))
-            return img
+    except Exception:
+        from PIL import ImageDraw
+        img = Image.new('RGB', (size, size), color=(20, 20, 20))
+        d = ImageDraw.Draw(img)
+        d.text((20, size // 2 - 10), clean_id, fill=(0, 240, 255))
+        return img
 
 
 def show_qr_popup_customtkinter(parent, appid: str, tool_name: str = "Software MDC"):

@@ -867,20 +867,27 @@ class MDCLicenseAdminApp(ctk.CTk):
         ).pack(side="left", padx=(0, 8))
 
         # Paket Pill
-        if "lifetime" in plan.lower():
+        # Paket Pill
+        p_low = plan.lower()
+        is_life = "lifetime" in p_low or days >= 9999 or exp.upper() == "LIFETIME"
+        is_trial = "trial" in p_low or "24" in p_low
+        hrs = lic.get("hoursLeft", days * 24 if days else 0)
+
+        if is_life:
             p_text = "👑 LIFETIME"
             p_bg = THEME["success_dim"]
             p_fg = THEME["success"]
-        elif "trial" in plan.lower():
-            p_text = f"⚡ TRIAL ({days}h)"
+        elif is_trial:
+            disp_h = hrs if hrs > 0 else (days * 24 if days > 0 else 0)
+            p_text = f"⚡ TRIAL ({disp_h} Jam)"
             p_bg = THEME["warning_dim"]
             p_fg = THEME["warning"]
-        elif "tahun" in plan.lower():
-            p_text = f"🌟 1 TAHUN ({days}h)"
+        elif "tahun" in p_low or "year" in p_low:
+            p_text = f"🌟 1 TAHUN ({days} Hari)"
             p_bg = "#1A1A3A"
             p_fg = THEME["purple_neon"]
         else:
-            p_text = f"💎 {plan} ({days}h)"
+            p_text = f"💎 {plan} ({days} Hari)"
             p_bg = THEME["cyan_dim"]
             p_fg = THEME["cyan_neon"]
 
@@ -986,11 +993,27 @@ class MDCLicenseAdminApp(ctk.CTk):
             text_color=THEME["text_muted"]
         ).pack(side="left", padx=(0, 6))
 
+        # +24 Jam
+        ctk.CTkButton(
+            row3,
+            text="⚡ +24 Jam",
+            width=70,
+            height=26,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color="#362204",
+            border_width=1,
+            border_color=THEME["warning"],
+            hover_color="#523207",
+            text_color=THEME["warning"],
+            corner_radius=6,
+            command=lambda: self._extend_license(hwid, tool, days=1, hours=24)
+        ).pack(side="left", padx=2)
+
         # +30 Hari
         ctk.CTkButton(
             row3,
-            text="⚡ +30 Hari",
-            width=72,
+            text="💎 +30 Hari",
+            width=74,
             height=26,
             font=ctk.CTkFont(size=10, weight="bold"),
             fg_color=THEME["cyan_dim"],
@@ -1186,8 +1209,9 @@ class MDCLicenseAdminApp(ctk.CTk):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _extend_license(self, hwid: str, tool: str, days: int):
-        if not messagebox.askyesno("Konfirmasi", f"Perpanjang lisensi {hwid} di tab '{tool}' selama {days} hari?"):
+    def _extend_license(self, hwid: str, tool: str, days: int = 30, hours: int = 0):
+        dur_label = f"{hours} jam" if (hours and hours > 0) else f"{days} hari"
+        if not messagebox.askyesno("Konfirmasi", f"Perpanjang lisensi {hwid} di tab '{tool}' selama {dur_label}?"):
             return
 
         api_url = self.config.get("api_url", "")
@@ -1195,7 +1219,12 @@ class MDCLicenseAdminApp(ctk.CTk):
 
         def worker():
             try:
-                qs = urllib.parse.urlencode({"action": "admin_extend", "pin": pin, "hwid": hwid, "tool": tool, "days": days})
+                params = {"action": "admin_extend", "pin": pin, "hwid": hwid, "tool": tool}
+                if hours and hours > 0:
+                    params["hours"] = hours
+                else:
+                    params["days"] = days
+                qs = urllib.parse.urlencode(params)
                 with urllib.request.urlopen(f"{api_url}?{qs}", timeout=25) as res:
                     raw = json.loads(res.read().decode("utf-8"))
                     self.after(0, lambda: self._on_action_done(raw))

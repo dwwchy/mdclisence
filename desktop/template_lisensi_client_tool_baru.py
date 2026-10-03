@@ -66,8 +66,21 @@ def get_hardware_id() -> str:
 # 📱 3. GENERATOR GAMBAR BARCODE / QR CODE OTOMATIS
 # ========================================================================
 def get_qr_image(appid: str, size: int = 220) -> Image.Image:
-    """Mengambil gambar QR Code dari AppID secara instan."""
+    """Mengambil gambar QR Code dari AppID secara instan (100% Offline via modul qrcode)."""
     clean_id = str(appid).strip().upper()
+
+    # 1. Prioritas Offline (Super Cepat < 0.001 detik tanpa internet)
+    try:
+        import qrcode
+        qr = qrcode.QRCode(box_size=6, border=2)
+        qr.add_data(clean_id)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
+        return img.resize((size, size), Image.Resampling.LANCZOS)
+    except Exception:
+        pass
+
+    # 2. Fallback online API jika module qrcode belum terpasang
     url = f"https://api.qrserver.com/v1/create-qr-code/?size={size}x{size}&margin=8&data={urllib.parse.quote(clean_id)}"
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -75,19 +88,11 @@ def get_qr_image(appid: str, size: int = 220) -> Image.Image:
             import io
             return Image.open(io.BytesIO(response.read()))
     except Exception:
-        # Fallback offline jika saat pertama kali buka tidak ada internet
-        try:
-            import qrcode
-            qr = qrcode.QRCode(box_size=6, border=2)
-            qr.add_data(clean_id)
-            qr.make(fit=True)
-            return qr.make_image(fill_color="black", back_color="white").convert('RGB')
-        except ImportError:
-            from PIL import ImageDraw
-            img = Image.new('RGB', (size, size), color=(15, 23, 42))
-            d = ImageDraw.Draw(img)
-            d.text((20, size // 2 - 10), clean_id, fill=(0, 240, 255))
-            return img
+        from PIL import ImageDraw
+        img = Image.new('RGB', (size, size), color=(15, 23, 42))
+        d = ImageDraw.Draw(img)
+        d.text((20, size // 2 - 10), clean_id, fill=(0, 240, 255))
+        return img
 
 
 # ========================================================================

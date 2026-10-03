@@ -386,7 +386,20 @@ function handleApiRequest(params) {
         });
       }
 
-      var expDate = expRaw instanceof Date ? expRaw : new Date(expRaw);
+      var expDate = parseFlexibleDate(expRaw);
+      if (!expDate) {
+        return responseJSON({
+          valid: true,
+          status: "active",
+          plan: paket,
+          tool: foundTool,
+          daysLeft: 30,
+          hoursLeft: 720,
+          expiry: String(expRaw),
+          message: "Lisensi " + paket + " Aktif."
+        });
+      }
+
       var nowTime = new Date();
       var diffMs = expDate.getTime() - nowTime.getTime();
 
@@ -509,13 +522,20 @@ function handleApiRequest(params) {
             var isBanned = rStatus.toLowerCase() === "blokir" || rStatus.toLowerCase() === "banned";
             var isExpired = false;
             var sisaHari = 99999;
+            var sisaJam = 999999;
 
             if (!isLifetime) {
-              var dExp = rAkhir instanceof Date ? rAkhir : new Date(rAkhir);
-              if (!isNaN(dExp.getTime())) {
+              var dExp = parseFlexibleDate(rAkhir);
+              if (dExp && !isNaN(dExp.getTime())) {
                 var sisaMs = dExp.getTime() - now.getTime();
-                sisaHari = Math.floor(sisaMs / (1000 * 60 * 60 * 24));
-                if (sisaMs <= 0) isExpired = true;
+                if (sisaMs <= 0) {
+                  isExpired = true;
+                  sisaHari = 0;
+                  sisaJam = 0;
+                } else {
+                  sisaHari = Math.floor(sisaMs / (1000 * 60 * 60 * 24));
+                  sisaJam = Math.floor(sisaMs / (1000 * 60 * 60));
+                }
               }
             }
 
@@ -531,7 +551,8 @@ function handleApiRequest(params) {
               notes: rCatatan,
               isBanned: isBanned,
               isExpired: isExpired,
-              daysLeft: sisaHari
+              daysLeft: sisaHari,
+              hoursLeft: sisaJam
             });
           }
         } catch(shErr) {
@@ -565,13 +586,28 @@ function handleApiRequest(params) {
         var nowAdd = new Date();
         var expAddStr = "LIFETIME";
 
-        if (targetPlan.toLowerCase().indexOf("lifetime") === -1) {
+        if (targetPlan.toLowerCase().indexOf("lifetime") !== -1 || String(params.expiry || "").toUpperCase() === "LIFETIME") {
+          expAddStr = "LIFETIME";
+        } else {
+          var pLow = targetPlan.toLowerCase();
           var daysToAdd = 30;
-          if (targetPlan.toLowerCase().indexOf("trial") !== -1 || targetPlan.indexOf("24") !== -1) daysToAdd = 1;
-          else if (targetPlan.toLowerCase().indexOf("tahun") !== -1) daysToAdd = 365;
-          else if (params.days) daysToAdd = parseInt(params.days);
+          var hoursToAdd = 0;
 
-          var expTarget = new Date(nowAdd.getTime() + (daysToAdd * 24 * 60 * 60 * 1000));
+          if (params.hours && parseInt(params.hours) > 0) {
+            hoursToAdd = parseInt(params.hours);
+            daysToAdd = 0;
+          } else if (params.days && parseInt(params.days) > 0) {
+            daysToAdd = parseInt(params.days);
+          } else if (pLow.indexOf("trial") !== -1 || pLow.indexOf("24") !== -1 || pLow.indexOf("1 hari") !== -1 || pLow.indexOf("sehari") !== -1) {
+            daysToAdd = 1;
+          } else if (pLow.indexOf("tahun") !== -1 || pLow.indexOf("year") !== -1 || pLow.indexOf("365") !== -1) {
+            daysToAdd = 365;
+          } else if (pLow.indexOf("bulan") !== -1 || pLow.indexOf("month") !== -1 || pLow.indexOf("30") !== -1) {
+            daysToAdd = 30;
+          }
+
+          var addMs = (daysToAdd * 24 * 60 * 60 * 1000) + (hoursToAdd * 60 * 60 * 1000);
+          var expTarget = new Date(nowAdd.getTime() + addMs);
           expAddStr = formatDate(expTarget);
         }
 
@@ -596,11 +632,15 @@ function handleApiRequest(params) {
     }
 
     // =========================================================
-    // 5. ADMIN: PERPANJANG MASA AKTIF (+X HARI)
+    // 5. ADMIN: PERPANJANG MASA AKTIF (+X HARI / JAM)
     // =========================================================
     if (action === "admin_extend") {
       if (!hwid) return responseJSON({ success: false, error: "AppID wajib diisi." });
-      var addDays = parseInt(params.days || "30");
+      var addDays = params.days ? parseInt(params.days) : 0;
+      var addHours = params.hours ? parseInt(params.hours) : 0;
+      if (addDays === 0 && addHours === 0) {
+        addDays = 30;
+      }
 
       return executeWithLock(function() {
         var foundExtend = findLicenseAcrossSheets(ss, hwid, toolParam);
@@ -610,20 +650,23 @@ function handleApiRequest(params) {
 
         var curExp = foundExtend.data[4];
         var baseDate = new Date();
-        if (curExp instanceof Date && curExp.getTime() > baseDate.getTime()) {
-          baseDate = curExp;
+        var curParsed = parseFlexibleDate(curExp);
+        if (curParsed && curParsed.getTime() > baseDate.getTime()) {
+          baseDate = curParsed;
         }
 
-        var newExp = new Date(baseDate.getTime() + (addDays * 24 * 60 * 60 * 1000));
+        var addMs = (addDays * 24 * 60 * 60 * 1000) + (addHours * 60 * 60 * 1000);
+        var newExp = new Date(baseDate.getTime() + addMs);
         var newExpStr = formatDate(newExp);
 
         foundExtend.sheet.getRange(foundExtend.row, 5).setValue(newExpStr);
         foundExtend.sheet.getRange(foundExtend.row, 6).setValue("Aktif");
 
+        var durMsg = addDays > 0 ? (addDays + " hari") : (addHours + " jam");
         return responseJSON({
           success: true,
           tool: foundExtend.tool,
-          message: "Berhasil memperpanjang lisensi " + hwid + " di tab " + foundExtend.tool + " selama " + addDays + " hari."
+          message: "Berhasil memperpanjang lisensi " + hwid + " di tab " + foundExtend.tool + " selama " + durMsg + "."
         });
       });
     }
@@ -767,6 +810,51 @@ function handleApiRequest(params) {
 
 function responseJSON(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function parseFlexibleDate(val) {
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+  var s = String(val).trim();
+  if (!s || s.toUpperCase() === "LIFETIME" || s.toUpperCase() === "PERMANENT" || s === "-") return null;
+
+  // Handle Indonesian dot separator in time: "2026-10-04 11.14.42" -> "2026-10-04 11:14:42"
+  var timeMatch = s.match(/\b(\d{1,2})\.(\d{2})\.(\d{2})\b/);
+  if (timeMatch) {
+    s = s.replace(timeMatch[0], timeMatch[1] + ":" + timeMatch[2] + ":" + timeMatch[3]);
+  }
+
+  // Coba native Date
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) return d;
+
+  // Coba format DD/MM/YYYY atau DD-MM-YYYY
+  var dmyMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (dmyMatch) {
+    var day = parseInt(dmyMatch[1], 10);
+    var month = parseInt(dmyMatch[2], 10) - 1;
+    var year = parseInt(dmyMatch[3], 10);
+    var hour = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
+    var min = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
+    var sec = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
+    var res = new Date(year, month, day, hour, min, sec);
+    if (!isNaN(res.getTime())) return res;
+  }
+
+  // Coba format YYYY/MM/DD atau YYYY-MM-DD
+  var ymdMatch = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (ymdMatch) {
+    var y = parseInt(ymdMatch[1], 10);
+    var m = parseInt(ymdMatch[2], 10) - 1;
+    var d2 = parseInt(ymdMatch[3], 10);
+    var h = ymdMatch[4] ? parseInt(ymdMatch[4], 10) : 0;
+    var mi = ymdMatch[5] ? parseInt(ymdMatch[5], 10) : 0;
+    var se = ymdMatch[6] ? parseInt(ymdMatch[6], 10) : 0;
+    var res2 = new Date(y, m, d2, h, mi, se);
+    if (!isNaN(res2.getTime())) return res2;
+  }
+
+  return null;
 }
 
 function formatDate(d) {
